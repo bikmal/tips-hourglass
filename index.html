@@ -92,6 +92,12 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
   .mbar .k{font-size:11px;color:#b9c7d4;text-transform:uppercase;letter-spacing:.06em}
   .mbar .n{font-size:18px;font-weight:600}
 }
+.plan{background:#f3f7fa;border:1px solid #dbe7ef;border-radius:3px;padding:12px;margin-top:4px}
+.plan .big{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;color:#13293d}
+.plan .k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.plan .row{display:flex;gap:16px;margin-top:6px;font-size:13px;color:#2b3742;font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.plan button{margin-top:10px;width:100%;padding:10px;border:0;border-radius:3px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.plan .msg{font-size:13px;color:#2b3742}
 </style>
 </head>
 <body>
@@ -103,37 +109,40 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
 <main>
 <div class="col">
   <section class="card">
-    <h2>Reduction</h2>
+    <h2>Plan a reduction</h2>
     <div class="field">
       <label>Existing TIPS diameter</label>
       <div class="seg" id="dSeg"><button data-d="8">8 mm</button><button data-d="10">10 mm</button><button data-d="12">12 mm</button></div>
     </div>
+    <div class="field"><label>Current PSG</label><input type="number" id="psgCur" step="0.5"><div class="sub">mmHg, portal − RA, before reduction</div></div>
+    <div class="field">
+      <label>Flare shape</label>
+      <div class="seg" id="fSeg"><button data-t="3">Abrupt</button><button data-t="8">Moderate</button><button data-t="15">Gradual</button></div>
+    </div>
+    <div class="field">
+      <label>Goal</label>
+      <div class="seg" id="gSeg"><button data-g="psg">Target PSG</button><button data-g="flow">Shunt flow reduction</button></div>
+    </div>
+    <div class="field"><label id="goalLbl"></label><input type="number" id="goal" step="0.5"><div class="sub" id="goalSub"></div></div>
+    <div class="plan" id="plan"></div>
+    <div class="err" id="err"></div>
+  </section>
+
+  <section class="card">
+    <h2>Explore</h2>
     <div class="field">
       <label>Waist diameter <span class="v" id="wDv"></span></label>
       <input type="range" id="wD" min="3" max="10" step="0.1">
     </div>
-    <div class="field">
-      <label>Flare shape</label>
-      <div class="seg" id="fSeg"><button data-t="3">Abrupt</button><button data-t="8">Moderate</button><button data-t="15">Gradual</button></div>
-      <div class="sub">How sharply the stent opens back up after the waist.</div>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>Patient</h2>
-    <div class="grid2">
-      <div class="field"><label>Pre-TIPS PSG</label><input type="number" id="psgPre" step="0.5"><div class="sub">mmHg</div></div>
-      <div class="field"><label>Current PSG</label><input type="number" id="psgCur" step="0.5"><div class="sub">mmHg, before reduction (portal − RA)</div></div>
-    </div>
-    <div class="field"><label>Target PSG <span class="sub" style="margin:0">optional</span></label><input type="number" id="target" step="0.5" placeholder="e.g. 10"><div class="sub">mmHg, solves for the waist needed</div></div>
-    <div class="err" id="err"></div>
-    <details style="margin-top:6px">
+    <details>
       <summary>Advanced</summary>
-      <div class="field" style="margin-top:10px"><label>Waist length <span class="v" id="wLv"></span></label><input type="range" id="wL" min="2" max="60" step="1"></div>
-      <div class="grid2">
+      <div class="grid2" style="margin-top:10px">
+        <div class="field"><label>Pre-TIPS PSG</label><input type="number" id="psgPre" step="0.5"><div class="sub">mmHg; sets liver stiffness</div></div>
         <div class="field"><label>Portal inflow</label><input type="number" id="Qin" step="0.1"><div class="sub">L/min</div></div>
         <div class="field"><label>Stent length</label><input type="number" id="L" step="5"><div class="sub">mm</div></div>
       </div>
+      <div class="field"><label>Waist length <span class="v" id="wLv"></span></label><input type="range" id="wL" min="2" max="60" step="1"></div>
+      <div class="sub">Pre-TIPS PSG barely changes the waist needed for a target gradient, but it does change the predicted flow split. Default 20 if unknown.</div>
     </details>
   </section>
 </div>
@@ -143,10 +152,9 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
     <h2>Predicted effect</h2>
     <div class="stats3">
       <div class="stat main"><div class="k">Portosystemic gradient</div><div class="n" id="sPsg"></div><div class="d" id="sPsgD"></div></div>
-      <div class="stat"><div class="k">Portal flow to liver</div><div class="n" id="sQl"></div><div class="d">vs before reduction</div></div>
+      <div class="stat"><div class="k">Portal flow reaching liver</div><div class="n" id="sQl"></div><div class="d" id="sQlD"></div></div>
       <div class="stat"><div class="k">Flow through shunt</div><div class="n" id="sQs"></div><div class="d">vs before reduction</div></div>
     </div>
-    <div class="note" id="tnote" style="display:none"></div>
   </section>
 
   <section class="card">
@@ -199,12 +207,12 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
   </section>
 </div>
 </main>
-<div class="mbar"><div><div class="k">Predicted PSG</div><div class="n" id="mPsg"></div></div><div><div class="k">Waist</div><div class="n" id="mW"></div></div><div><div class="k">Liver flow</div><div class="n" id="mQl"></div></div></div>
+<div class="mbar"><div><div class="k">Predicted PSG</div><div class="n" id="mPsg"></div></div><div><div class="k">Waist</div><div class="n" id="mW"></div></div><div><div class="k">To liver</div><div class="n" id="mQl"></div></div></div>
 <footer>Educational model for teaching. Not validated and not intended for clinical decision-making. Built by Anirudh Bikmal.</footer>
 
 <script>
 const MU=0.0035, RHO=1060, PA=133.322;
-const S={D:10,L:80,wD:6,wL:10,tL:8,psgPre:20,psgCur:6,Qin:2.5};
+const S={D:10,L:80,wD:6,wL:10,tL:8,psgPre:20,psgCur:-4,Qin:2.5,goal:'psg',gv:{psg:5,flow:25}};
 const $=id=>document.getElementById(id);
 /* ---------- physics ---------- */
 function rAt(x,g){ // mm
@@ -257,6 +265,10 @@ function clampGeom(){
 function syncInputs(){
   document.querySelectorAll('#dSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.d===S.D));
   document.querySelectorAll('#fSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.t===S.tL));
+  document.querySelectorAll('#gSeg button').forEach(b=>b.classList.toggle('on',b.dataset.g===S.goal));
+  $('goalLbl').textContent=S.goal==='psg'?'Target PSG after reduction':'Target reduction in shunt flow';
+  $('goalSub').textContent=S.goal==='psg'?'mmHg':'% less blood through the TIPS';
+  if(document.activeElement!==$('goal')) $('goal').value=S.gv[S.goal];
   $('wD').value=S.wD; $('wL').value=S.wL;
   $('wDv').textContent=S.wD.toFixed(1)+' mm'; $('wLv').textContent=S.wL+' mm';
   ['psgPre','psgCur','Qin','L'].forEach(k=>{ if(document.activeElement!==$(k)) $(k).value=S[k]; });
@@ -273,19 +285,30 @@ function update(){
   $('sPsg').innerHTML=fmt(psg)+' <small>mmHg</small>';
   $('sPsgD').textContent=`from ${S.psgCur<0.5?'~0':fmt(S.psgCur)} (${dd>=0.05?'+':''}${Math.abs(dd)<0.05?'0.0':fmt(dd)})`;
   const Ql0=cal.Qin-cal.Qs0, Ql=cal.Qin-res.Qs;
-  $('sQl').textContent=pct((Ql/Ql0-1)*100);
+  $('sQl').textContent=fmt(Ql/cal.Qin*100,0)+'%'; $('sQlD').textContent='of portal inflow (was '+fmt(Ql0/cal.Qin*100,0)+'%)';
   $('sQs').textContent=pct((res.Qs/cal.Qs0-1)*100);
-  $('mPsg').textContent=fmt(psg)+' mmHg'; $('mW').textContent=fmt(S.wD)+' mm'; $('mQl').textContent=pct((Ql/Ql0-1)*100);
-  // target
-  const T=parseFloat($('target').value); let tw=null;
-  if(!isNaN(T)){
-    $('tnote').style.display='block';
-    if(T<=Math.max(0.5,S.psgCur)) $('tnote').textContent='Target is at or below the current gradient. No reduction needed.';
-    else if(psgAt(3,S.tL)<T) $('tnote').textContent=`A ${T} mmHg target is not reached even with a 3 mm waist and this flare.`;
-    else { let lo=3,hi=S.D; for(let i=0;i<40;i++){const m=(lo+hi)/2; if(psgAt(m,S.tL)>T) lo=m; else hi=m;} tw=(lo+hi)/2;
-      $('tnote').innerHTML=`To reach <b>${T} mmHg</b> with this flare: waist of about <b>${fmt(tw)} mm</b>.`; }
-  } else $('tnote').style.display='none';
-  drawChart(isNaN(T)?null:T);
+  $('mPsg').textContent=fmt(psg)+' mmHg'; $('mW').textContent=fmt(S.wD)+' mm'; $('mQl').textContent=fmt(Ql/cal.Qin*100,0)+'%';
+  plan();
+  drawChart(S.goal==='psg'?S.gv.psg:null);
+}
+
+let planW=null;
+function plan(){
+  const g=S.goal, v=S.gv[g], el=$('plan'); planW=null;
+  if(isNaN(v)){ el.innerHTML='<div class="msg">Enter a goal.</div>'; return; }
+  const base=Math.max(0.5,S.psgCur);
+  const metric=d=>{ const r=solve({...S,wD:d},cal); return g==='psg'?r.dP/PA:(1-r.Qs/cal.Qs0)*100; };
+  if(g==='psg'&&v<=base){ el.innerHTML='<div class="msg">Target is at or below the current gradient. No reduction needed.</div>'; return; }
+  if(g==='flow'&&(v<=0||v>=100)){ el.innerHTML='<div class="msg">Enter a reduction between 0 and 100%.</div>'; return; }
+  if(metric(3)<v){ el.innerHTML=`<div class="msg">Not reachable even with a 3 mm waist and this flare.</div>`; return; }
+  let lo=3,hi=S.D; for(let i=0;i<40;i++){ const m=(lo+hi)/2; if(metric(m)>v) lo=m; else hi=m; }
+  planW=(lo+hi)/2;
+  const r=solve({...S,wD:planW},cal), Ql0=cal.Qin-cal.Qs0, Ql=cal.Qin-r.Qs;
+  el.innerHTML=`<div class="k">Waist diameter needed</div><div class="big">${fmt(planW)} mm</div>
+    <div class="row"><span>PSG ${fmt(r.dP/PA)} mmHg</span><span>Shunt flow ${pct((r.Qs/cal.Qs0-1)*100)}</span><span>Liver gets ${fmt(Ql/cal.Qin*100,0)}% of portal flow (was ${fmt(Ql0/cal.Qin*100,0)}%)</span></div>
+    <div class="sub">Model estimate only. Confirm by re-measuring the gradient after ballooning.</div>
+    <button id="useW">Show this in the model</button>`;
+  $('useW').onclick=()=>{ S.wD=Math.round(planW*10)/10; update(); $('flow').scrollIntoView({behavior:'smooth',block:'center'}); };
 }
 function curve(t){ const pts=[]; for(let d=3; d<=S.D+1e-9; d+=0.1) pts.push([d,psgAt(d,t)]); return pts; }
 function drawChart(T){
@@ -378,7 +401,8 @@ document.querySelectorAll('#dSeg button').forEach(b=>b.onclick=()=>{ const old=S
 document.querySelectorAll('#fSeg button').forEach(b=>b.onclick=()=>{ S.tL=+b.dataset.t; update(); });
 $('wD').oninput=e=>{ S.wD=+e.target.value; update(); };
 $('wL').oninput=e=>{ S.wL=+e.target.value; update(); };
-$('target').oninput=()=>update();
+document.querySelectorAll('#gSeg button').forEach(b=>b.onclick=()=>{ S.goal=b.dataset.g; update(); });
+$('goal').oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ S.gv[S.goal]=v; update(); } };
 ['psgPre','psgCur','Qin','L'].forEach(k=>$(k).oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)&&(v>0||k==='psgCur')){ S[k]=v; if(k==='L') resetParticles(); update(); } });
 window.addEventListener('resize',()=>{ frameSetup(); update(); });
 frameSetup(); resetParticles(); update(); requestAnimationFrame(tick);
