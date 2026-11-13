@@ -67,6 +67,31 @@ footer{max-width:1180px;margin:0 auto;padding:4px 16px 24px;font-size:12px;color
 .vars{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
 .vars td{border-top:1px solid #e7ebef;padding:5px 6px;vertical-align:top}
 .vars td:first-child{white-space:nowrap;font-weight:600;width:1%}
+
+/* mobile */
+input[type=range]{-webkit-appearance:none;appearance:none;height:28px;background:transparent}
+input[type=range]::-webkit-slider-runnable-track{height:4px;background:#d8dee4;border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;background:var(--accent);border:3px solid #fff;box-shadow:0 0 0 1px #9fb3c4}
+input[type=range]::-moz-range-track{height:4px;background:#d8dee4;border-radius:2px}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);border:3px solid #fff;box-shadow:0 0 0 1px #9fb3c4}
+.mbar{display:none}
+@media(max-width:880px){
+  body{padding-bottom:64px}
+  header{padding:12px 14px}
+  header h1{font-size:17px}
+  main{padding:10px;gap:10px}
+  .col{gap:10px}
+  .card{padding:12px}
+  input[type=number]{font-size:16px;padding:9px 10px}
+  .seg button{padding:10px 0;font-size:15px}
+  .field label{font-size:14px}
+  .eq code{white-space:normal;word-break:break-word}
+  .vars td{font-size:12.5px}
+  .vars td:first-child{white-space:normal}
+  .mbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:10;background:#13293d;color:#fff;padding:10px 16px calc(10px + env(safe-area-inset-bottom));justify-content:space-between;align-items:center;font-variant-numeric:tabular-nums;box-shadow:0 -2px 8px rgba(0,0,0,.15)}
+  .mbar .k{font-size:11px;color:#b9c7d4;text-transform:uppercase;letter-spacing:.06em}
+  .mbar .n{font-size:18px;font-weight:600}
+}
 </style>
 </head>
 <body>
@@ -174,6 +199,7 @@ footer{max-width:1180px;margin:0 auto;padding:4px 16px 24px;font-size:12px;color
   </section>
 </div>
 </main>
+<div class="mbar"><div><div class="k">Predicted PSG</div><div class="n" id="mPsg"></div></div><div><div class="k">Waist</div><div class="n" id="mW"></div></div><div><div class="k">Liver flow</div><div class="n" id="mQl"></div></div></div>
 <footer>Educational model for teaching. Not validated and not intended for clinical decision-making. Built by Anirudh Bikmal.</footer>
 
 <script>
@@ -249,6 +275,7 @@ function update(){
   const Ql0=cal.Qin-cal.Qs0, Ql=cal.Qin-res.Qs;
   $('sQl').textContent=pct((Ql/Ql0-1)*100);
   $('sQs').textContent=pct((res.Qs/cal.Qs0-1)*100);
+  $('mPsg').textContent=fmt(psg)+' mmHg'; $('mW').textContent=fmt(S.wD)+' mm'; $('mQl').textContent=pct((Ql/Ql0-1)*100);
   // target
   const T=parseFloat($('target').value); let tw=null;
   if(!isNaN(T)){
@@ -300,7 +327,7 @@ function lineChart(cv,{series,xr,yr,marker,xlab}){
 /* ---------- animated flow view ---------- */
 const flow=$('flow'); let F, parts=[];
 function resetParticles(){ parts=Array.from({length:260},()=>({x:Math.random()*S.L,s:(Math.random()*2-1)*.94})); }
-function frameSetup(){ F=fit(flow,190); }
+function frameSetup(){ F=fit(flow,window.innerWidth<600?150:190); }
 let last=performance.now();
 function tick(now){
   const dt=Math.min(.05,(now-last)/1000); last=now;
@@ -309,7 +336,7 @@ function tick(now){
 }
 function drawFlow(dt){
   const {x:ctx,w,h}=F, padX=18, xs=(w-2*padX)/S.L, vs=Math.max(7,Math.min(xs*1.0,(h/2-26)/(S.D/2)));
-  const cy=h/2+4, X=x=>padX+x*xs, Qs=res.Qs, slow=1/40;
+  const cy=h/2+10, X=x=>padX+x*xs, Qs=res.Qs, slow=1/40;
   ctx.clearRect(0,0,w,h);
   ctx.fillStyle='#eef1f4'; ctx.fillRect(0,0,w,h);
   // outer (original) stent lumen
