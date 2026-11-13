@@ -116,6 +116,11 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
     </div>
     <div class="field"><label>Current PSG</label><input type="number" id="psgCur" step="0.5"><div class="sub">mmHg, portal − RA, before reduction</div></div>
     <div class="field">
+      <label>Flared ends</label>
+      <div class="seg" id="sSeg"><button data-s="both">Both</button><button data-s="portal">Portal only</button><button data-s="hepatic">Hepatic only</button></div>
+      <div class="sub" id="sideSub"></div>
+    </div>
+    <div class="field">
       <label>Flare shape</label>
       <div class="seg" id="fSeg"><button data-t="3">Abrupt</button><button data-t="8">Moderate</button><button data-t="15">Gradual</button></div>
     </div>
@@ -180,10 +185,11 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
     <h2>Model equations</h2>
     <div class="eq">
       <div><b>1. Flow is conserved</b><code>Q<sub>in</sub> = Q<sub>liver</sub> + Q<sub>shunt</sub></code></div>
-      <div><b>2. Liver and shunt see the same gradient</b><code>PSG = Q<sub>liver</sub> · R<sub>liver</sub> = Q<sub>shunt</sub> · R<sub>path</sub> + Q<sub>shunt</sub> · R<sub>waist</sub> + K · ½ρ (U<sub>waist</sub> − U<sub>stent</sub>)²</code></div>
+      <div><b>2. Liver and shunt see the same gradient</b><code>PSG = Q<sub>liver</sub> · R<sub>liver</sub> = Q<sub>shunt</sub> · R<sub>path</sub> + Q<sub>shunt</sub> · R<sub>waist</sub> + K · ½ρ (U<sub>waist</sub> − U<sub>stent</sub>)² + K<sub>c</sub> · ½ρ U<sub>waist</sub>²</code></div>
       <div><b>3. Calibration from the patient</b><code>R<sub>liver</sub> = PSG<sub>pre-TIPS</sub> / Q<sub>in</sub></code><code>Q<sub>shunt,0</sub> = Q<sub>in</sub> − PSG<sub>current</sub> / R<sub>liver</sub> &nbsp;&nbsp; R<sub>path</sub> = PSG<sub>current</sub> / Q<sub>shunt,0</sub></code></div>
       <div><b>4. Friction added by the narrowed segment (Poiseuille)</b><code>R<sub>waist</sub> = ∫ (8μ / π) · (1/r(x)⁴ − 1/R⁴) dx</code></div>
-      <div><b>5. Exit loss as the jet re-expands (Borda–Carnot)</b><code>U<sub>waist</sub> = Q<sub>shunt</sub> / (π r<sub>w</sub>²) &nbsp;&nbsp; U<sub>stent</sub> = Q<sub>shunt</sub> / (π R²)</code><code>K = min(1, 2.6 · sin θ) &nbsp;&nbsp; tan θ = (R − r<sub>w</sub>) / L<sub>flare</sub></code></div>
+      <div><b>5. Exit loss as the jet re-expands (Borda–Carnot)</b><code>U<sub>waist</sub> = Q<sub>shunt</sub> / (π r<sub>w</sub>²) &nbsp;&nbsp; U<sub>stent</sub> = Q<sub>shunt</sub> / (π R²)</code><code>K = min(1, 2.6 · sin θ) if the hepatic end is flared, otherwise K = 1 &nbsp;&nbsp; tan θ = (R − r<sub>w</sub>) / L<sub>flare</sub></code></div>
+      <div><b>6. Entry loss if the portal end is not flared (sudden contraction)</b><code>K<sub>c</sub> = 0.42 · (1 − r<sub>w</sub>² / R²) if unflared, otherwise 0</code></div>
     </div>
     <p class="sub" style="margin-top:10px">Equation 2 is solved numerically for Q<sub>shunt</sub>; the predicted PSG follows.</p>
     <table class="vars">
@@ -200,6 +206,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
       <tr><td>L<sub>flare</sub></td><td>Length over which the stent flares from waist back to full size</td></tr>
       <tr><td>θ</td><td>Flare half-angle; steeper means more abrupt</td></tr>
       <tr><td>K</td><td>Exit-loss coefficient (0 = all energy recovered, 1 = abrupt expansion)</td></tr>
+      <tr><td>K<sub>c</sub></td><td>Entry-loss coefficient for a sudden narrowing at the portal end</td></tr>
       <tr><td>U<sub>waist</sub>, U<sub>stent</sub></td><td>Mean blood velocity at the waist and in the full-size stent</td></tr>
       <tr><td>μ, ρ</td><td>Blood viscosity (3.5 mPa·s) and density (1060 kg/m³)</td></tr>
     </table>
@@ -212,13 +219,20 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
 
 <script>
 const MU=0.0035, RHO=1060, PA=133.322;
-const S={D:10,L:80,wD:6,wL:10,tL:8,psgPre:20,psgCur:-4,Qin:2.5,goal:'psg',gv:{psg:5,flow:25}};
+const S={side:'both',D:10,L:80,wD:6,wL:10,tL:8,psgPre:20,psgCur:-4,Qin:2.5,goal:'psg',gv:{psg:5,flow:25}};
 const $=id=>document.getElementById(id);
 /* ---------- physics ---------- */
+function lay(g){ // narrow segment [a,b] in mm; which ends flare
+  const m=g.side||'both';
+  if(m==='portal') return {a:g.L-g.wL,b:g.L,fin:true,fout:false};
+  if(m==='hepatic') return {a:0,b:g.wL,fin:false,fout:true};
+  const c=g.L/2; return {a:c-g.wL/2,b:c+g.wL/2,fin:true,fout:true};
+}
 function rAt(x,g){ // mm
-  const c=g.L/2, d=Math.abs(x-c), hw=g.wL/2, R=g.D/2, rw=g.wD/2;
-  if(d<=hw) return rw;
-  if(d<=hw+g.tL){ const t=(d-hw)/g.tL; return rw+(R-rw)*(1-Math.cos(Math.PI*t))/2; }
+  const R=g.D/2, rw=g.wD/2, l=lay(g);
+  if(x>=l.a&&x<=l.b) return rw;
+  const d=x<l.a?l.a-x:x-l.b;
+  if(d<=g.tL){ const t=d/g.tL; return rw+(R-rw)*(1-Math.cos(Math.PI*t))/2; }
   return R;
 }
 const NX=400;
@@ -228,8 +242,10 @@ function geom(g){
   const A0=Math.PI*R0*R0, Aw=Math.PI*(g.wD/2000)**2;
   const red=g.wD<g.D-1e-6;
   const th=red?Math.atan(((g.D-g.wD)/2)/g.tL):0;
-  const K=red?Math.min(1,2.6*Math.sin(th)):0;
-  return {Rv,A0,Aw,th,K};
+  const l=lay(g);
+  const K=red?(l.fout?Math.min(1,2.6*Math.sin(th)):1):0;
+  const Kc=(red&&!l.fin)?0.42*(1-Aw/A0):0;
+  return {Rv,A0,Aw,th,K,Kc,l};
 }
 function calibrate(s){
   const g0=Math.max(0.5,s.psgCur), Qin=s.Qin/60000, Rl=s.psgPre*PA/Qin, Ql=g0*PA/Rl, Qs=Qin-Ql;
@@ -237,11 +253,11 @@ function calibrate(s){
 }
 function solve(g,cal){
   const G=geom(g);
-  const f=Q=>cal.Rpath*Q+G.Rv*Q+G.K*RHO/2*(Q/G.Aw-Q/G.A0)**2-(cal.Qin-Q)*cal.Rl;
+  const f=Q=>cal.Rpath*Q+G.Rv*Q+G.K*RHO/2*(Q/G.Aw-Q/G.A0)**2+G.Kc*RHO/2*(Q/G.Aw)**2-(cal.Qin-Q)*cal.Rl;
   let lo=0,hi=cal.Qin;
   for(let i=0;i<60;i++){ const m=(lo+hi)/2; if(f(m)>0) hi=m; else lo=m; }
   const Qs=(lo+hi)/2;
-  return {Qs,dP:(cal.Qin-Qs)*cal.Rl,G,parts:{path:cal.Rpath*Qs,visc:G.Rv*Qs,exit:G.K*RHO/2*(Qs/G.Aw-Qs/G.A0)**2}};
+  return {Qs,dP:(cal.Qin-Qs)*cal.Rl,G,parts:{path:cal.Rpath*Qs,visc:G.Rv*Qs,exit:G.K*RHO/2*(Qs/G.Aw-Qs/G.A0)**2,entry:G.Kc*RHO/2*(Qs/G.Aw)**2}};
 }
 function pressureProfile(g,res){
   const N=240,L=g.L,Qs=res.Qs,R0=g.D/2000,U0=Qs/(Math.PI*R0*R0),Uw=Qs/res.G.Aw,c=L/2,hw=g.wL/2;
@@ -259,12 +275,15 @@ function pressureProfile(g,res){
 /* ---------- state + UI ---------- */
 let cal, res, pre;
 function clampGeom(){
-  S.wD=Math.min(S.wD,S.D); S.tL=Math.min(S.tL,(S.L-2)/2); S.wL=Math.min(S.wL,S.L-2*S.tL);
-  $('wD').max=S.D; $('wL').max=Math.max(2,Math.floor(S.L-2*S.tL));
+  const nf=S.side==='both'?2:1;
+  S.wD=Math.min(S.wD,S.D); S.tL=Math.min(S.tL,(S.L-2)/nf); S.wL=Math.min(S.wL,S.L-nf*S.tL);
+  $('wD').max=S.D; $('wL').max=Math.max(2,Math.floor(S.L-nf*S.tL));
 }
 function syncInputs(){
   document.querySelectorAll('#dSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.d===S.D));
   document.querySelectorAll('#fSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.t===S.tL));
+  document.querySelectorAll('#sSeg button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.side));
+  $('sideSub').textContent={both:'Hourglass: narrow in the middle, flared at both ends.',portal:'Funnel: flared at the portal end, narrow where it exits into the hepatic vein.',hepatic:'Reverse funnel: narrow at the portal end, flared toward the hepatic vein.'}[S.side];
   document.querySelectorAll('#gSeg button').forEach(b=>b.classList.toggle('on',b.dataset.g===S.goal));
   $('goalLbl').textContent=S.goal==='psg'?'Target PSG after reduction':'Target reduction in shunt flow';
   $('goalSub').textContent=S.goal==='psg'?'mmHg':'% less blood through the TIPS';
@@ -274,7 +293,7 @@ function syncInputs(){
   ['psgPre','psgCur','Qin','L'].forEach(k=>{ if(document.activeElement!==$(k)) $(k).value=S[k]; });
 }
 const fmt=(v,d=1)=>v.toFixed(d), pct=v=>(Math.abs(v)<0.5?'±':v>0?'+':'−')+Math.abs(v).toFixed(0)+'%';
-const psgAt=(d,t)=>solve({...S,wD:d,tL:Math.min(t,(S.L-S.wL)/2)},cal).dP/PA;
+const psgAt=(d,t)=>solve({...S,wD:d,tL:Math.min(t,(S.L-S.wL)/(S.side==='both'?2:1))},cal).dP/PA;
 
 function update(){
   clampGeom(); syncInputs();
@@ -370,8 +389,9 @@ function drawFlow(dt){
   ctx.fillStyle='#fbfcfd'; ctx.fill(); ctx.save(); ctx.clip();
   // separation zones
   const th=res.G.th*180/Math.PI;
-  if(th>7&&S.wD<S.D){
-    const x0=S.L/2+S.wL/2, len=Math.min(S.L-x0, S.tL+ (R-S.wD/2)*3*Math.min(1,(th-7)/15));
+  const LY=lay(S);
+  if(th>7&&S.wD<S.D&&LY.fout){
+    const x0=LY.b, len=Math.min(S.L-x0, S.tL+ (R-S.wD/2)*3*Math.min(1,(th-7)/15));
     ctx.fillStyle='rgba(224,120,47,0.13)';
     [-1,1].forEach(sg=>{ ctx.beginPath(); ctx.moveTo(X(x0),cy+sg*(S.wD/2)*vs); for(let i=0;i<=30;i++){ const x=x0+len*i/30; ctx.lineTo(X(x),cy+sg*rAt(x,S)*vs);} for(let i=30;i>=0;i--){ const x=x0+len*i/30; const t=i/30; const ri=S.wD/2+(rAt(x,S)-S.wD/2)*Math.pow(t,1.6)*0.5; ctx.lineTo(X(x),cy+sg*Math.max(S.wD/2*0.98,ri)*vs);} ctx.closePath(); ctx.fill(); });
   }
@@ -384,7 +404,10 @@ function drawFlow(dt){
     ctx.strokeStyle=cmap(v*100/250); ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(X(p.x)-tail,y); ctx.lineTo(X(p.x),y); ctx.stroke();
   }
   ctx.restore();
-  if(th>7&&S.wD<S.D){ ctx.fillStyle='#b4581f'; ctx.font='10.5px -apple-system,Segoe UI,sans-serif'; ctx.textAlign='left'; ctx.fillText('recirculation',X(S.L/2+S.wL/2)+4,cy-R*vs-6); }
+  ctx.fillStyle='#b4581f'; ctx.font='10.5px -apple-system,Segoe UI,sans-serif';
+  if(S.wD<S.D&&LY.fout&&th>7){ ctx.textAlign='left'; ctx.fillText('recirculation',X(LY.b)+4,cy-R*vs-6); }
+  if(S.wD<S.D&&!LY.fout){ ctx.textAlign='right'; ctx.fillText('abrupt exit: jet into hepatic vein',X(S.L),cy+R*vs+16); }
+  if(S.wD<S.D&&!LY.fin){ ctx.textAlign='left'; ctx.fillText('abrupt entry',X(0),cy+R*vs+16); }
   // walls with strut pattern
   ctx.strokeStyle='#aab4be'; ctx.setLineDash([4,4]); ctx.lineWidth=1;
   [-1,1].forEach(sg=>{ ctx.beginPath(); ctx.moveTo(X(0),cy+sg*R*vs); ctx.lineTo(X(S.L),cy+sg*R*vs); ctx.stroke(); });
@@ -401,6 +424,7 @@ document.querySelectorAll('#dSeg button').forEach(b=>b.onclick=()=>{ const old=S
 document.querySelectorAll('#fSeg button').forEach(b=>b.onclick=()=>{ S.tL=+b.dataset.t; update(); });
 $('wD').oninput=e=>{ S.wD=+e.target.value; update(); };
 $('wL').oninput=e=>{ S.wL=+e.target.value; update(); };
+document.querySelectorAll('#sSeg button').forEach(b=>b.onclick=()=>{ S.side=b.dataset.s; update(); });
 document.querySelectorAll('#gSeg button').forEach(b=>b.onclick=()=>{ S.goal=b.dataset.g; update(); });
 $('goal').oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ S.gv[S.goal]=v; update(); } };
 ['psgPre','psgCur','Qin','L'].forEach(k=>$(k).oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)&&(v>0||k==='psgCur')){ S[k]=v; if(k==='L') resetParticles(); update(); } });
