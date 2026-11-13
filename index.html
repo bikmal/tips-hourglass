@@ -57,20 +57,30 @@ details summary{cursor:pointer;font-weight:600;font-size:13px}
 details p,details li{font-size:13px;color:#2b3742}
 code{background:#f1f3f5;padding:1px 4px;border-radius:3px;font-size:12px}
 footer{max-width:1180px;margin:0 auto;padding:4px 16px 24px;font-size:12px;color:var(--muted)}
+
+.stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:640px){.stats3{grid-template-columns:1fr 1fr}.stats3 .main{grid-column:1/-1}}
+.teach{display:grid;gap:10px;font-size:13.5px}
+.teach b{color:#13293d}
+.eq{display:grid;gap:10px;font-size:13.5px}
+.eq code{display:block;margin-top:4px;padding:8px 10px;font-size:13px;background:#f4f6f8;border:1px solid #e3e7eb;overflow-x:auto;white-space:nowrap}
+.vars{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+.vars td{border-top:1px solid #e7ebef;padding:5px 6px;vertical-align:top}
+.vars td:first-child{white-space:nowrap;font-weight:600;width:1%}
 </style>
 </head>
 <body>
 <header><div class="wrap">
   <h1>TIPS Reduction Flow Model</h1>
-  <p>Hourglass stent-in-stent reduction: estimated change in portosystemic gradient, shunt flow and in-stent flow pattern</p>
+  <p>Estimate how an hourglass stent-in-stent reduction changes the portosystemic gradient and liver perfusion</p>
 </div></header>
 
 <main>
 <div class="col">
   <section class="card">
-    <h2>Reduction geometry</h2>
+    <h2>Reduction</h2>
     <div class="field">
-      <label>Original TIPS diameter</label>
+      <label>Existing TIPS diameter</label>
       <div class="seg" id="dSeg"><button data-d="8">8 mm</button><button data-d="10">10 mm</button><button data-d="12">12 mm</button></div>
     </div>
     <div class="field">
@@ -78,90 +88,89 @@ footer{max-width:1180px;margin:0 auto;padding:4px 16px 24px;font-size:12px;color
       <input type="range" id="wD" min="3" max="10" step="0.1">
     </div>
     <div class="field">
-      <label>Waist length <span class="v" id="wLv"></span></label>
-      <input type="range" id="wL" min="2" max="60" step="1">
-    </div>
-    <div class="field">
-      <label>Flare (taper) length <span class="v" id="tLv"></span></label>
-      <input type="range" id="tL" min="2" max="25" step="0.5">
-      <div class="sub">Distance over which the stent returns from waist to full diameter. Shorter means a more abrupt flare.</div>
-    </div>
-    <h2 style="margin-top:16px">Presets</h2>
-    <div class="presets">
-      <button data-p="none">No reduction</button>
-      <button data-p="hg6">Hourglass, 6 mm waist</button>
-      <button data-p="hg5">Hourglass, 5 mm, abrupt</button>
-      <button data-p="full6">Full-length 6 mm</button>
+      <label>Flare shape</label>
+      <div class="seg" id="fSeg"><button data-t="3">Abrupt</button><button data-t="8">Moderate</button><button data-t="15">Gradual</button></div>
+      <div class="sub">How sharply the stent opens back up after the waist.</div>
     </div>
   </section>
 
   <section class="card">
-    <h2>Patient calibration</h2>
+    <h2>Patient</h2>
     <div class="grid2">
       <div class="field"><label>Pre-TIPS PSG</label><input type="number" id="psgPre" step="0.5"><div class="sub">mmHg</div></div>
-      <div class="field"><label>Current PSG</label><input type="number" id="psgCur" step="0.5"><div class="sub">mmHg, before reduction</div></div>
-      <div class="field"><label>Portal inflow</label><input type="number" id="Qin" step="0.1"><div class="sub">L/min, held constant</div></div>
-      <div class="field"><label>Stent length</label><input type="number" id="L" step="5"><div class="sub">mm</div></div>
+      <div class="field"><label>Current PSG</label><input type="number" id="psgCur" step="0.5"><div class="sub">mmHg, before reduction (portal − RA)</div></div>
     </div>
-    <div class="sub" id="calNote"></div>
+    <div class="field"><label>Target PSG <span class="sub" style="margin:0">optional</span></label><input type="number" id="target" step="0.5" placeholder="e.g. 10"><div class="sub">mmHg, solves for the waist needed</div></div>
     <div class="err" id="err"></div>
+    <details style="margin-top:6px">
+      <summary>Advanced</summary>
+      <div class="field" style="margin-top:10px"><label>Waist length <span class="v" id="wLv"></span></label><input type="range" id="wL" min="2" max="60" step="1"></div>
+      <div class="grid2">
+        <div class="field"><label>Portal inflow</label><input type="number" id="Qin" step="0.1"><div class="sub">L/min</div></div>
+        <div class="field"><label>Stent length</label><input type="number" id="L" step="5"><div class="sub">mm</div></div>
+      </div>
+    </details>
   </section>
 </div>
 
 <div class="col">
   <section class="card">
-    <h2>Predicted effect of reduction</h2>
-    <div class="stats">
+    <h2>Predicted effect</h2>
+    <div class="stats3">
       <div class="stat main"><div class="k">Portosystemic gradient</div><div class="n" id="sPsg"></div><div class="d" id="sPsgD"></div></div>
-      <div class="stat"><div class="k">Shunt flow</div><div class="n" id="sQs"></div><div class="d" id="sQsD"></div></div>
-      <div class="stat"><div class="k">Portal flow to liver</div><div class="n" id="sQl"></div><div class="d" id="sQlD"></div></div>
-      <div class="stat"><div class="k">Mean velocity at waist</div><div class="n" id="sU"></div><div class="d" id="sRe"></div></div>
+      <div class="stat"><div class="k">Portal flow to liver</div><div class="n" id="sQl"></div><div class="d">vs before reduction</div></div>
+      <div class="stat"><div class="k">Flow through shunt</div><div class="n" id="sQs"></div><div class="d">vs before reduction</div></div>
     </div>
-    <div class="note" id="r4note"></div>
+    <div class="note" id="tnote" style="display:none"></div>
   </section>
 
   <section class="card">
     <h2>Flow through the stent</h2>
     <canvas id="flow"></canvas>
-    <div class="legend"><span>Local velocity</span><span>0</span><span class="cbar"></span><span>300 cm/s</span><span id="vnote"></span></div>
-    <div class="ctitle" style="margin-top:12px">Pressure along the stent (relative to IVC)</div>
-    <canvas id="pres"></canvas>
-    <div class="key"><span><i style="border-color:#0b6fa4"></i>After reduction</span><span><i style="border-color:#9aa5b1;border-top-style:dashed"></i>Before reduction</span></div>
-    <div class="sub">Pressure dips through the waist as blood speeds up, then only partly recovers in the flare. The unrecovered part is what raises the gradient.</div>
+    <div class="legend"><span>Velocity</span><span>slow</span><span class="cbar"></span><span>fast</span><span id="vnote"></span></div>
   </section>
 
   <section class="card">
-    <h2>Sensitivity to waist diameter</h2>
-    <div class="chart-grid">
-      <div><div class="ctitle">Gradient (mmHg)</div><canvas id="c1"></canvas></div>
-      <div><div class="ctitle">Shunt share of portal inflow (%)</div><canvas id="c2"></canvas></div>
-    </div>
+    <h2>Gradient vs waist diameter</h2>
+    <canvas id="c1"></canvas>
     <div class="key">
-      <span><i style="border-color:#0b6fa4"></i>Current flare length</span>
-      <span><i style="border-color:#c7252b;border-top-style:dashed"></i>Abrupt flare (2 mm)</span>
-      <span><i style="border-color:#9aa5b1;border-top-style:dashed"></i>Gradual flare (20 mm)</span>
+      <span><i style="border-color:#c7252b"></i>Abrupt flare</span>
+      <span><i style="border-color:#0b6fa4"></i>Moderate</span>
+      <span><i style="border-color:#9aa5b1"></i>Gradual</span>
+      <span><i style="border-color:#2b3742;border-top-style:dotted"></i>Target</span>
     </div>
+    <div class="sub" style="margin-top:6px">Little changes until the waist gets small, then the gradient climbs steeply. Small differences in final balloon size matter most at the narrow end.</div>
   </section>
 
-  <section class="card">
-    <h2>Where the gradient comes from</h2>
-    <div class="bar" id="bar"></div>
-    <div class="blist" id="blist"></div>
-    <div class="sub" style="margin-top:8px">At TIPS flow rates, most of the added gradient comes from blood decelerating out of the waist, not from friction along it. In this model, waist diameter and flare shape drive the gradient more than waist length does.</div>
-  </section>
 
   <section class="card">
-    <details>
-      <summary>Model and assumptions</summary>
-      <ul>
-        <li>The portal circulation is two resistances in parallel: the liver and the shunt. Portal inflow is held constant, so the predicted gradient rise is an upper estimate; in reality splanchnic inflow may fall as the gradient rises.</li>
-        <li>Liver resistance is calibrated from the pre-TIPS gradient (<code>R<sub>liver</sub> = PSG<sub>pre-TIPS</sub> / Q</code>), ignoring spontaneous collaterals.</li>
-        <li>Everything else in the shunt pathway (stent ends, hepatic vein, angulation) is lumped into one resistance calibrated from the measured gradient before reduction.</li>
-        <li>Added waist losses: Poiseuille friction integrated along the stent profile, <code>ΔP = Q·∫ 8μ/(πr⁴) dx</code>, plus a Borda–Carnot exit loss, <code>ΔP = K·ρ/2·(U<sub>waist</sub> − U<sub>stent</sub>)²</code>, with diffuser coefficient <code>K = min(1, 2.6·sin θ)</code> for flare half-angle θ.</li>
-        <li>Steady, Newtonian flow in rigid tubes; blood viscosity 3.5 mPa·s, density 1060 kg/m³. Waist Reynolds numbers above about 2000 suggest turbulence, which this model does not capture, so losses may be underestimated.</li>
-        <li>The flow animation is slowed and schematic: particles follow the stent contour with a parabolic profile. Recirculation shading marks where flow separation is expected (flare half-angle above about 7°), not a computed flow field.</li>
-      </ul>
-    </details>
+    <h2>Model equations</h2>
+    <div class="eq">
+      <div><b>1. Flow is conserved</b><code>Q<sub>in</sub> = Q<sub>liver</sub> + Q<sub>shunt</sub></code></div>
+      <div><b>2. Liver and shunt see the same gradient</b><code>PSG = Q<sub>liver</sub> · R<sub>liver</sub> = Q<sub>shunt</sub> · R<sub>path</sub> + Q<sub>shunt</sub> · R<sub>waist</sub> + K · ½ρ (U<sub>waist</sub> − U<sub>stent</sub>)²</code></div>
+      <div><b>3. Calibration from the patient</b><code>R<sub>liver</sub> = PSG<sub>pre-TIPS</sub> / Q<sub>in</sub></code><code>Q<sub>shunt,0</sub> = Q<sub>in</sub> − PSG<sub>current</sub> / R<sub>liver</sub> &nbsp;&nbsp; R<sub>path</sub> = PSG<sub>current</sub> / Q<sub>shunt,0</sub></code></div>
+      <div><b>4. Friction added by the narrowed segment (Poiseuille)</b><code>R<sub>waist</sub> = ∫ (8μ / π) · (1/r(x)⁴ − 1/R⁴) dx</code></div>
+      <div><b>5. Exit loss as the jet re-expands (Borda–Carnot)</b><code>U<sub>waist</sub> = Q<sub>shunt</sub> / (π r<sub>w</sub>²) &nbsp;&nbsp; U<sub>stent</sub> = Q<sub>shunt</sub> / (π R²)</code><code>K = min(1, 2.6 · sin θ) &nbsp;&nbsp; tan θ = (R − r<sub>w</sub>) / L<sub>flare</sub></code></div>
+    </div>
+    <p class="sub" style="margin-top:10px">Equation 2 is solved numerically for Q<sub>shunt</sub>; the predicted PSG follows.</p>
+    <table class="vars">
+      <tr><td>PSG</td><td>Portosystemic gradient (portal − RA pressure), mmHg</td></tr>
+      <tr><td>PSG<sub>pre-TIPS</sub></td><td>Gradient before the original TIPS; sets liver stiffness</td></tr>
+      <tr><td>PSG<sub>current</sub></td><td>Gradient before reduction (values ≤ 0 treated as 0.5)</td></tr>
+      <tr><td>Q<sub>in</sub></td><td>Total portal inflow, held constant (default 2.5 L/min)</td></tr>
+      <tr><td>Q<sub>liver</sub>, Q<sub>shunt</sub></td><td>Portal flow through the liver and through the TIPS</td></tr>
+      <tr><td>Q<sub>shunt,0</sub></td><td>Shunt flow before reduction</td></tr>
+      <tr><td>R<sub>liver</sub></td><td>Resistance of the cirrhotic liver</td></tr>
+      <tr><td>R<sub>path</sub></td><td>Baseline resistance of the whole shunt pathway (stent, ends, hepatic vein)</td></tr>
+      <tr><td>R<sub>waist</sub></td><td>Extra friction resistance from the narrowed segment</td></tr>
+      <tr><td>R, r<sub>w</sub>, r(x)</td><td>Radius of the original stent, of the waist, and at position x along the stent</td></tr>
+      <tr><td>L<sub>flare</sub></td><td>Length over which the stent flares from waist back to full size</td></tr>
+      <tr><td>θ</td><td>Flare half-angle; steeper means more abrupt</td></tr>
+      <tr><td>K</td><td>Exit-loss coefficient (0 = all energy recovered, 1 = abrupt expansion)</td></tr>
+      <tr><td>U<sub>waist</sub>, U<sub>stent</sub></td><td>Mean blood velocity at the waist and in the full-size stent</td></tr>
+      <tr><td>μ, ρ</td><td>Blood viscosity (3.5 mPa·s) and density (1060 kg/m³)</td></tr>
+    </table>
+    <p class="sub">Assumptions: steady Newtonian flow in rigid tubes; collaterals ignored; constant portal inflow makes the predicted rise an upper estimate; turbulence at very small waists is not modeled.</p>
   </section>
 </div>
 </main>
@@ -171,7 +180,6 @@ footer{max-width:1180px;margin:0 auto;padding:4px 16px 24px;font-size:12px;color
 const MU=0.0035, RHO=1060, PA=133.322;
 const S={D:10,L:80,wD:6,wL:10,tL:8,psgPre:20,psgCur:6,Qin:2.5};
 const $=id=>document.getElementById(id);
-
 /* ---------- physics ---------- */
 function rAt(x,g){ // mm
   const c=g.L/2, d=Math.abs(x-c), hw=g.wL/2, R=g.D/2, rw=g.wD/2;
@@ -190,8 +198,8 @@ function geom(g){
   return {Rv,A0,Aw,th,K};
 }
 function calibrate(s){
-  const Qin=s.Qin/60000, Rl=s.psgPre*PA/Qin, Ql=s.psgCur*PA/Rl, Qs=Qin-Ql;
-  return {Qin,Rl,Rpath:s.psgCur*PA/Qs,Qs0:Qs};
+  const g0=Math.max(0.5,s.psgCur), Qin=s.Qin/60000, Rl=s.psgPre*PA/Qin, Ql=g0*PA/Rl, Qs=Qin-Ql;
+  return {Qin,Rl,Rpath:g0*PA/Qs,Qs0:Qs,g0};
 }
 function solve(g,cal){
   const G=geom(g);
@@ -214,14 +222,70 @@ function pressureProfile(g,res){
   return pts;
 }
 
-/* ---------- canvas helpers ---------- */
-function fit(c,h){ const dpr=window.devicePixelRatio||1, w=c.clientWidth; c.width=w*dpr; c.height=h*dpr; c.style.height=h+'px'; const x=c.getContext('2d'); x.setTransform(dpr,0,0,dpr,0,0); return {x,w,h}; }
+/* ---------- state + UI ---------- */
+let cal, res, pre;
+function clampGeom(){
+  S.wD=Math.min(S.wD,S.D); S.tL=Math.min(S.tL,(S.L-2)/2); S.wL=Math.min(S.wL,S.L-2*S.tL);
+  $('wD').max=S.D; $('wL').max=Math.max(2,Math.floor(S.L-2*S.tL));
+}
+function syncInputs(){
+  document.querySelectorAll('#dSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.d===S.D));
+  document.querySelectorAll('#fSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.t===S.tL));
+  $('wD').value=S.wD; $('wL').value=S.wL;
+  $('wDv').textContent=S.wD.toFixed(1)+' mm'; $('wLv').textContent=S.wL+' mm';
+  ['psgPre','psgCur','Qin','L'].forEach(k=>{ if(document.activeElement!==$(k)) $(k).value=S[k]; });
+}
+const fmt=(v,d=1)=>v.toFixed(d), pct=v=>(Math.abs(v)<0.5?'±':v>0?'+':'−')+Math.abs(v).toFixed(0)+'%';
+const psgAt=(d,t)=>solve({...S,wD:d,tL:Math.min(t,(S.L-S.wL)/2)},cal).dP/PA;
+
+function update(){
+  clampGeom(); syncInputs();
+  if(!(S.psgPre>Math.max(0.5,S.psgCur)&&S.Qin>0)){ $('err').textContent='Pre-TIPS gradient must be higher than the current gradient.'; return; }
+  $('err').textContent=S.psgCur<0.5?'Measured gradient ≤ 0 (likely measurement artifact); modeled as ~0.5 mmHg, i.e. a wide-open shunt.':'';
+  cal=calibrate(S); res=solve(S,cal); pre=solve({...S,wD:S.D},cal);
+  const psg=res.dP/PA, dd=psg-Math.max(0.5,S.psgCur);
+  $('sPsg').innerHTML=fmt(psg)+' <small>mmHg</small>';
+  $('sPsgD').textContent=`from ${S.psgCur<0.5?'~0':fmt(S.psgCur)} (${dd>=0.05?'+':''}${Math.abs(dd)<0.05?'0.0':fmt(dd)})`;
+  const Ql0=cal.Qin-cal.Qs0, Ql=cal.Qin-res.Qs;
+  $('sQl').textContent=pct((Ql/Ql0-1)*100);
+  $('sQs').textContent=pct((res.Qs/cal.Qs0-1)*100);
+  // target
+  const T=parseFloat($('target').value); let tw=null;
+  if(!isNaN(T)){
+    $('tnote').style.display='block';
+    if(T<=Math.max(0.5,S.psgCur)) $('tnote').textContent='Target is at or below the current gradient. No reduction needed.';
+    else if(psgAt(3,S.tL)<T) $('tnote').textContent=`A ${T} mmHg target is not reached even with a 3 mm waist and this flare.`;
+    else { let lo=3,hi=S.D; for(let i=0;i<40;i++){const m=(lo+hi)/2; if(psgAt(m,S.tL)>T) lo=m; else hi=m;} tw=(lo+hi)/2;
+      $('tnote').innerHTML=`To reach <b>${T} mmHg</b> with this flare: waist of about <b>${fmt(tw)} mm</b>.`; }
+  } else $('tnote').style.display='none';
+  drawChart(isNaN(T)?null:T);
+}
+function curve(t){ const pts=[]; for(let d=3; d<=S.D+1e-9; d+=0.1) pts.push([d,psgAt(d,t)]); return pts; }
+function drawChart(T){
+  const ab=curve(3), mo=curve(8), gr=curve(15);
+  const all=[...ab,...mo,...gr].map(p=>p[1]).concat(T?[T]:[]);
+  let lo=Math.min(...all), hi=Math.max(...all); const pad=(hi-lo)*.08||1; lo=Math.max(0,lo-pad); hi+=pad;
+  const series=[{pts:gr,color:'#9aa5b1',w:1.8},{pts:mo,color:'#0b6fa4',w:1.8},{pts:ab,color:'#c7252b',w:1.8}];
+  if(T) series.push({pts:[[3,T],[S.D,T]],color:'#2b3742',dash:[2,3],w:1.2});
+  lineChart($('c1'),{xr:[3,S.D],yr:[lo,hi],xlab:'Waist diameter (mm)',marker:[S.wD,res.dP/PA],series});
+}
+function drawPressure(){
+  const {x:ctx,w,h}=fit($('pres'),150), m={l:38,r:10,t:10,b:24}, pw=w-m.l-m.r, ph=h-m.t-m.b;
+  const pp=pressureProfile(S,res), p0=pressureProfile({...S,wD:S.D},pre);
+  const ys=[...pp,...p0].map(p=>p[1]); let lo=Math.min(0,...ys), hi=Math.max(...ys); const pad=(hi-lo)*.1; lo-=pad; hi+=pad;
+  const X=v=>m.l+v/S.L*pw, Y=v=>m.t+ph-(v-lo)/(hi-lo)*ph;
+  ctx.font='11px -apple-system,Segoe UI,Roboto,sans-serif'; ctx.fillStyle='#5b6875'; ctx.strokeStyle='#e7ebef';
+  nice(lo,hi,4).forEach(v=>{ ctx.beginPath(); ctx.moveTo(m.l,Y(v)); ctx.lineTo(m.l+pw,Y(v)); ctx.stroke(); ctx.textAlign='right'; ctx.fillText(v,m.l-6,Y(v)+4); });
+  ctx.textAlign='left'; ctx.fillText('Portal end',m.l,h-6); ctx.textAlign='right'; ctx.fillText('Hepatic vein end',m.l+pw,h-6);
+  [[p0,'#9aa5b1',[5,4],1.5],[pp,'#0b6fa4',[],2.5]].forEach(([pts,c,d,lw])=>{ ctx.strokeStyle=c; ctx.setLineDash(d); ctx.lineWidth=lw; ctx.beginPath(); pts.forEach((p,i)=>i?ctx.lineTo(X(p[0]),Y(p[1])):ctx.moveTo(X(p[0]),Y(p[1]))); ctx.stroke(); });
+  ctx.setLineDash([]); ctx.lineWidth=1;
+}
 function nice(lo,hi,n){ const span=hi-lo||1, raw=span/n, p=Math.pow(10,Math.floor(Math.log10(raw))), m=raw/p; const st=(m<1.5?1:m<3?2:m<7?5:10)*p; const t=[]; for(let v=Math.ceil(lo/st)*st; v<=hi+1e-9; v+=st) t.push(+v.toFixed(6)); return t; }
+function fit(c,h){ const dpr=window.devicePixelRatio||1, w=c.clientWidth; c.width=w*dpr; c.height=h*dpr; c.style.height=h+'px'; const x=c.getContext('2d'); x.setTransform(dpr,0,0,dpr,0,0); return {x,w,h}; }
 const CM=[[44,111,187],[63,167,160],[227,199,74],[224,120,47],[199,37,43]];
 function cmap(t){ t=Math.max(0,Math.min(1,t))*(CM.length-1); const i=Math.min(CM.length-2,Math.floor(t)), f=t-i, a=CM[i], b=CM[i+1]; return `rgb(${a.map((v,k)=>Math.round(v+(b[k]-v)*f)).join(',')})`; }
-
 function lineChart(cv,{series,xr,yr,marker,xlab}){
-  const {x:ctx,w,h}=fit(cv,200), m={l:38,r:10,t:8,b:30}, pw=w-m.l-m.r, ph=h-m.t-m.b;
+  const {x:ctx,w,h}=fit(cv,230), m={l:38,r:10,t:8,b:30}, pw=w-m.l-m.r, ph=h-m.t-m.b;
   const X=v=>m.l+(v-xr[0])/(xr[1]-xr[0])*pw, Y=v=>m.t+ph-(v-yr[0])/(yr[1]-yr[0])*ph;
   ctx.font='11px -apple-system,Segoe UI,Roboto,sans-serif'; ctx.fillStyle='#5b6875'; ctx.strokeStyle='#e7ebef'; ctx.lineWidth=1;
   nice(yr[0],yr[1],4).forEach(v=>{ ctx.beginPath(); ctx.moveTo(m.l,Y(v)); ctx.lineTo(m.l+pw,Y(v)); ctx.stroke(); ctx.textAlign='right'; ctx.fillText(v,m.l-6,Y(v)+4); });
@@ -231,79 +295,6 @@ function lineChart(cv,{series,xr,yr,marker,xlab}){
   series.forEach(s=>{ ctx.strokeStyle=s.color; ctx.lineWidth=s.w||2; ctx.setLineDash(s.dash||[]); ctx.beginPath(); s.pts.forEach((p,i)=>i?ctx.lineTo(X(p[0]),Y(p[1])):ctx.moveTo(X(p[0]),Y(p[1]))); ctx.stroke(); });
   ctx.setLineDash([]);
   if(marker){ ctx.fillStyle='#0b6fa4'; ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(X(marker[0]),Y(marker[1]),5,0,7); ctx.fill(); ctx.stroke(); }
-}
-
-/* ---------- state + UI ---------- */
-let cal, res, pre;
-function clampGeom(){
-  S.wD=Math.min(S.wD,S.D); S.tL=Math.min(S.tL,(S.L-2)/2); S.wL=Math.min(S.wL,S.L-2*S.tL);
-  $('wD').max=S.D; $('wL').max=Math.max(2,Math.floor(S.L-2*S.tL));
-}
-function syncInputs(){
-  document.querySelectorAll('#dSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.d===S.D));
-  $('wD').value=S.wD; $('wL').value=S.wL; $('tL').value=S.tL;
-  $('wDv').textContent=S.wD.toFixed(1)+' mm'; $('wLv').textContent=S.wL+' mm'; $('tLv').textContent=S.tL+' mm';
-  ['psgPre','psgCur','Qin','L'].forEach(k=>{ if(document.activeElement!==$(k)) $(k).value=S[k]; });
-}
-const fmt=(v,d=1)=>v.toFixed(d), pct=v=>(Math.abs(v)<0.5?'±':v>0?'+':'−')+Math.abs(v).toFixed(0)+'%';
-
-function update(){
-  clampGeom(); syncInputs();
-  if(!(S.psgCur>0&&S.psgPre>S.psgCur&&S.Qin>0)){ $('err').textContent='Current gradient must be above 0 and below the pre-TIPS gradient.'; return; }
-  $('err').textContent='';
-  cal=calibrate(S); res=solve(S,cal); pre=solve({...S,wD:S.D},cal);
-  const Q=v=>v*60000, A0=Math.PI*(S.D/2000)**2;
-  $('calNote').textContent=`Implied shunt flow before reduction: ${fmt(Q(cal.Qs0),2)} L/min (mean in-stent velocity ${fmt(cal.Qs0/A0*100,0)} cm/s; centerline peak roughly twice that).`;
-  $('sPsg').innerHTML=fmt(res.dP/PA)+' <small>mmHg</small>';
-  const dd=res.dP/PA-S.psgCur; $('sPsgD').textContent=`from ${fmt(S.psgCur)} mmHg (${dd>=0.05?'+':''}${Math.abs(dd)<0.05?'0.0':fmt(dd)})`;
-  $('sQs').innerHTML=fmt(Q(res.Qs),2)+' <small>L/min</small>';
-  $('sQsD').textContent=pct((res.Qs/cal.Qs0-1)*100)+' · '+fmt(res.Qs/cal.Qin*100,0)+'% of inflow';
-  const Ql0=cal.Qin-cal.Qs0, Ql=cal.Qin-res.Qs;
-  $('sQl').innerHTML=fmt(Q(Ql),2)+' <small>L/min</small>';
-  $('sQlD').textContent=pct((Ql/Ql0-1)*100)+' vs before';
-  const Uw=res.Qs/res.G.Aw, Re=RHO*Uw*(S.wD/1000)/MU;
-  $('sU').innerHTML=fmt(Uw*100,0)+' <small>cm/s</small>';
-  $('sRe').textContent='Re ≈ '+Math.round(Re/10)*10+(Re>2000?' · likely turbulent':'');
-  const naive=(Math.pow(S.wD/S.D,4)-1)*100, model=(res.Qs/cal.Qs0-1)*100;
-  $('r4note').innerHTML=S.wD>=S.D?'Set a waist smaller than the original stent to model a reduction.':
-    `Simple r⁴ scaling predicts shunt flow would fall <b>${Math.abs(naive).toFixed(0)}%</b>. Accounting for the liver in parallel and where the pressure is actually lost, this model predicts <b>${Math.abs(model).toFixed(0)}%</b>. The gradient rises, pushing more portal flow back through the liver instead.`;
-  drawCharts(); drawPressure(); drawBar();
-}
-
-/* ---------- static charts ---------- */
-function curve(tL,key){
-  const pts=[]; const tl=Math.min(tL,(S.L-S.wL)/2);
-  for(let d=3; d<=S.D+1e-9; d+=0.1){ const r=solve({...S,wD:d,tL:tl},cal); pts.push([d,key==='p'?r.dP/PA:r.Qs/cal.Qin*100]); }
-  return pts;
-}
-function drawCharts(){
-  ['p','q'].forEach((k,i)=>{
-    const cur=curve(S.tL,k), ab=curve(2,k), gr=curve(20,k);
-    const all=[...cur,...ab,...gr].map(p=>p[1]);
-    let lo=Math.min(...all), hi=Math.max(...all); const pad=(hi-lo)*.08||1;
-    lo=k==='q'?Math.max(0,lo-pad):Math.max(0,lo-pad); hi=hi+pad;
-    const mv=k==='p'?res.dP/PA:res.Qs/cal.Qin*100;
-    lineChart($(i?'c2':'c1'),{xr:[3,S.D],yr:[lo,hi],xlab:'Waist diameter (mm)',marker:[S.wD,mv],
-      series:[{pts:gr,color:'#9aa5b1',dash:[5,4],w:1.5},{pts:ab,color:'#c7252b',dash:[5,4],w:1.5},{pts:cur,color:'#0b6fa4',w:2.5}]});
-  });
-}
-function drawPressure(){
-  const {x:ctx,w,h}=fit($('pres'),170), m={l:38,r:10,t:10,b:24}, pw=w-m.l-m.r, ph=h-m.t-m.b;
-  const pp=pressureProfile(S,res), p0=pressureProfile({...S,wD:S.D},pre);
-  const ys=[...pp,...p0].map(p=>p[1]); let lo=Math.min(0,...ys), hi=Math.max(...ys); const pad=(hi-lo)*.1; lo-=pad; hi+=pad;
-  const X=v=>m.l+v/S.L*pw, Y=v=>m.t+ph-(v-lo)/(hi-lo)*ph;
-  ctx.font='11px -apple-system,Segoe UI,Roboto,sans-serif'; ctx.fillStyle='#5b6875'; ctx.strokeStyle='#e7ebef';
-  nice(lo,hi,4).forEach(v=>{ ctx.beginPath(); ctx.moveTo(m.l,Y(v)); ctx.lineTo(m.l+pw,Y(v)); ctx.stroke(); ctx.textAlign='right'; ctx.fillText(v,m.l-6,Y(v)+4); });
-  ctx.textAlign='left'; ctx.fillText('Portal end',m.l,h-6); ctx.textAlign='right'; ctx.fillText('Hepatic vein end',m.l+pw,h-6);
-  ctx.strokeStyle='#c3cbd3'; ctx.beginPath(); ctx.moveTo(m.l,Y(0)); ctx.lineTo(m.l+pw,Y(0)); ctx.stroke();
-  [[p0,'#9aa5b1',[5,4],1.5],[pp,'#0b6fa4',[],2.5]].forEach(([pts,c,d,lw])=>{ ctx.strokeStyle=c; ctx.setLineDash(d); ctx.lineWidth=lw; ctx.beginPath(); pts.forEach((p,i)=>i?ctx.lineTo(X(p[0]),Y(p[1])):ctx.moveTo(X(p[0]),Y(p[1]))); ctx.stroke(); });
-  ctx.setLineDash([]); ctx.lineWidth=1;
-}
-function drawBar(){
-  const parts=[['Baseline pathway',res.parts.path,'#9aa5b1'],['Friction along waist',Math.max(0,res.parts.visc),'#3fa7a0'],['Exit expansion loss',res.parts.exit,'#e0782f']];
-  const tot=parts.reduce((a,p)=>a+p[1],0);
-  $('bar').innerHTML=parts.map(p=>`<div style="width:${p[1]/tot*100}%;background:${p[2]}"></div>`).join('');
-  $('blist').innerHTML=parts.map(p=>`<div><span class="sw" style="background:${p[2]}"></span>${p[0]}<br><b class="v">${fmt(p[1]/PA,2)} mmHg</b></div>`).join('');
 }
 
 /* ---------- animated flow view ---------- */
@@ -340,7 +331,7 @@ function drawFlow(dt){
     const v=U*prof; p.x+=v*1000*slow*dt;
     if(p.x>S.L){ p.x-=S.L; p.s=(Math.random()*2-1)*.94; }
     const y=cy+p.s*rAt(p.x,S)*vs, tail=Math.max(1.5,v*1000*slow*0.12*xs);
-    ctx.strokeStyle=cmap(v*100/300); ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(X(p.x)-tail,y); ctx.lineTo(X(p.x),y); ctx.stroke();
+    ctx.strokeStyle=cmap(v*100/250); ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(X(p.x)-tail,y); ctx.lineTo(X(p.x),y); ctx.stroke();
   }
   ctx.restore();
   if(th>7&&S.wD<S.D){ ctx.fillStyle='#b4581f'; ctx.font='10.5px -apple-system,Segoe UI,sans-serif'; ctx.textAlign='left'; ctx.fillText('recirculation',X(S.L/2+S.wL/2)+4,cy-R*vs-6); }
@@ -354,17 +345,17 @@ function drawFlow(dt){
   $('vnote').textContent=vs>xs*1.05?'· vertical scale exaggerated':'· slowed 40×';
 }
 
+
 /* ---------- events ---------- */
 document.querySelectorAll('#dSeg button').forEach(b=>b.onclick=()=>{ const old=S.D; S.D=+b.dataset.d; if(S.wD>=old) S.wD=S.D; update(); });
+document.querySelectorAll('#fSeg button').forEach(b=>b.onclick=()=>{ S.tL=+b.dataset.t; update(); });
 $('wD').oninput=e=>{ S.wD=+e.target.value; update(); };
 $('wL').oninput=e=>{ S.wL=+e.target.value; update(); };
-$('tL').oninput=e=>{ S.tL=+e.target.value; S.wL=Math.min(S.wL,S.L-2*S.tL); update(); };
-['psgPre','psgCur','Qin','L'].forEach(k=>$(k).oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)&&v>0){ S[k]=v; if(k==='L') resetParticles(); update(); } });
-const P={none:()=>({wD:S.D}),hg6:()=>({wD:6,wL:10,tL:8}),hg5:()=>({wD:5,wL:8,tL:3}),full6:()=>({wD:6,tL:4,wL:S.L-8})};
-document.querySelectorAll('.presets button').forEach(b=>b.onclick=()=>{ Object.assign(S,P[b.dataset.p]()); update(); });
+$('target').oninput=()=>update();
+['psgPre','psgCur','Qin','L'].forEach(k=>$(k).oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)&&(v>0||k==='psgCur')){ S[k]=v; if(k==='L') resetParticles(); update(); } });
 window.addEventListener('resize',()=>{ frameSetup(); update(); });
-
 frameSetup(); resetParticles(); update(); requestAnimationFrame(tick);
+
 </script>
 </body>
 </html>
