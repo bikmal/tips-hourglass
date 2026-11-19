@@ -109,7 +109,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
 <main>
 <div class="col">
   <section class="card">
-    <h2>Plan a reduction</h2>
+    <h2>Plan a revision</h2>
     <div class="field">
       <label>Existing TIPS diameter</label>
       <div class="seg" id="dSeg"><button data-d="8">8 mm</button><button data-d="10">10 mm</button><button data-d="12">12 mm</button></div>
@@ -126,7 +126,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
     </div>
     <div class="field">
       <label>Goal</label>
-      <div class="seg" id="gSeg"><button data-g="psg">Target PSG</button><button data-g="flow">Shunt flow reduction</button></div>
+      <div class="seg" id="gSeg"><button data-g="psg">Target PSG</button><button data-g="flow">Shunt flow change</button></div>
     </div>
     <div class="field"><label id="goalLbl"></label><input type="number" id="goal" step="0.5"><div class="sub" id="goalSub"></div></div>
     <div class="plan" id="plan"></div>
@@ -191,6 +191,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
       <div><b>5. Exit loss as the jet re-expands (Borda–Carnot)</b><code>U<sub>waist</sub> = Q<sub>shunt</sub> / (π r<sub>w</sub>²) &nbsp;&nbsp; U<sub>stent</sub> = Q<sub>shunt</sub> / (π R²)</code><code>K = min(1, 2.6 · sin θ) if the hepatic end is flared, otherwise K = 1 &nbsp;&nbsp; tan θ = (R − r<sub>w</sub>) / L<sub>flare</sub></code></div>
       <div><b>6. Entry loss if the portal end is not flared (sudden contraction)</b><code>K<sub>c</sub> = 0.42 · (1 − r<sub>w</sub>² / R²) if unflared, otherwise 0</code></div>
     </div>
+          <div class="eq"><div><b>7. Upsizing (uniform dilation to D<sub>new</sub>)</b><code>R<sub>path,new</sub> = R<sub>path</sub> · (D / D<sub>new</sub>)⁴ &nbsp;&nbsp; Q<sub>shunt</sub> = Q<sub>in</sub> · R<sub>liver</sub> / (R<sub>path,new</sub> + R<sub>liver</sub>)</code></div></div>
     <p class="sub" style="margin-top:10px">Equation 2 is solved numerically for Q<sub>shunt</sub>; the predicted PSG follows.</p>
     <table class="vars">
       <tr><td>PSG</td><td>Portosystemic gradient (portal − RA pressure), mmHg</td></tr>
@@ -219,7 +220,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
 
 <script>
 const MU=0.0035, RHO=1060, PA=133.322;
-const S={side:'both',D:10,L:80,wD:6,wL:10,tL:8,psgPre:20,psgCur:-4,Qin:2.5,goal:'psg',gv:{psg:5,flow:25}};
+const S={side:'both',D:10,L:80,wD:6,wL:10,tL:8,psgPre:20,psgCur:3,Qin:2.5,goal:'psg',gv:{psg:7,flow:-25}};
 const $=id=>document.getElementById(id);
 /* ---------- physics ---------- */
 function lay(g){ // narrow segment [a,b] in mm; which ends flare
@@ -285,8 +286,8 @@ function syncInputs(){
   document.querySelectorAll('#sSeg button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.side));
   $('sideSub').textContent={both:'Hourglass: narrow in the middle, flared at both ends.',portal:'Funnel: flared at the portal end, narrow where it exits into the hepatic vein.',hepatic:'Reverse funnel: narrow at the portal end, flared toward the hepatic vein.'}[S.side];
   document.querySelectorAll('#gSeg button').forEach(b=>b.classList.toggle('on',b.dataset.g===S.goal));
-  $('goalLbl').textContent=S.goal==='psg'?'Target PSG after reduction':'Target reduction in shunt flow';
-  $('goalSub').textContent=S.goal==='psg'?'mmHg':'% less blood through the TIPS';
+  $('goalLbl').textContent=S.goal==='psg'?'Target PSG after revision':'Target change in shunt flow';
+  $('goalSub').textContent=S.goal==='psg'?'mmHg; above current = downsize, below = upsize':'%; negative = less flow (downsize), positive = more flow (upsize)';
   if(document.activeElement!==$('goal')) $('goal').value=S.gv[S.goal];
   $('wD').value=S.wD; $('wL').value=S.wL;
   $('wDv').textContent=S.wD.toFixed(1)+' mm'; $('wLv').textContent=S.wL+' mm';
@@ -308,23 +309,40 @@ function update(){
   $('sQs').textContent=pct((res.Qs/cal.Qs0-1)*100);
   $('mPsg').textContent=fmt(psg)+' mmHg'; $('mW').textContent=fmt(S.wD)+' mm'; $('mQl').textContent=fmt(Ql/cal.Qin*100,0)+'%';
   plan();
-  drawChart(S.goal==='psg'?S.gv.psg:null);
+  drawChart(S.goal==='psg'&&S.gv.psg>Math.max(0.5,S.psgCur)?S.gv.psg:null);
 }
 
 let planW=null;
+const DMAX=16;
+function solveUp(Dn){ const Rp=cal.Rpath*Math.pow(S.D/Dn,4), Qs=cal.Qin*cal.Rl/(Rp+cal.Rl); return {Qs,dP:Qs*Rp}; }
 function plan(){
   const g=S.goal, v=S.gv[g], el=$('plan'); planW=null;
   if(isNaN(v)){ el.innerHTML='<div class="msg">Enter a goal.</div>'; return; }
-  const base=Math.max(0.5,S.psgCur);
+  const base=Math.max(0.5,S.psgCur), Ql0=cal.Qin-cal.Qs0;
+  const liver=Qs=>`Liver gets ${fmt((cal.Qin-Qs)/cal.Qin*100,0)}% of portal flow (was ${fmt(Ql0/cal.Qin*100,0)}%)`;
+  const up = g==='psg' ? v<base : v>0;
+  if((g==='psg'&&Math.abs(v-base)<0.05)||(g==='flow'&&v===0)){ el.innerHTML='<div class="msg">No change needed.</div>'; return; }
+  if(g==='flow'&&v<=-100){ el.innerHTML='<div class="msg">Enter a change above −100%.</div>'; return; }
+  if(up){
+    if(g==='psg'&&v<=0){ el.innerHTML='<div class="msg">Enter a target above 0.</div>'; return; }
+    const metric=d=>{ const r=solveUp(d); return g==='psg'?r.dP/PA:(r.Qs/cal.Qs0-1)*100; };
+    const ok=g==='psg'?metric(DMAX)<=v:metric(DMAX)>=v;
+    if(!ok){ el.innerHTML=`<div class="msg">Not reachable even by dilating to ${DMAX} mm.</div>`; return; }
+    let lo=S.D,hi=DMAX; for(let i=0;i<40;i++){ const m=(lo+hi)/2, x=metric(m); if(g==='psg'?x>v:x<v) lo=m; else hi=m; }
+    const Dn=(lo+hi)/2, r=solveUp(Dn);
+    el.innerHTML=`<div class="k">Upsize: dilate the stent to</div><div class="big">${fmt(Dn)} mm</div>
+      <div class="row"><span>${pct((Dn/S.D-1)*100)} diameter vs current ${S.D} mm</span><span>PSG ${fmt(r.dP/PA)} mmHg</span><span>Shunt flow ${pct((r.Qs/cal.Qs0-1)*100)}</span><span>${liver(r.Qs)}</span></div>
+      <div class="sub">Assumes the shunt's resistance scales with diameter⁴ (uniform dilation, e.g. a controlled-expansion or underdilated stent). Model estimate only; re-measure the gradient.</div>`;
+    return;
+  }
   const metric=d=>{ const r=solve({...S,wD:d},cal); return g==='psg'?r.dP/PA:(1-r.Qs/cal.Qs0)*100; };
-  if(g==='psg'&&v<=base){ el.innerHTML='<div class="msg">Target is at or below the current gradient. No reduction needed.</div>'; return; }
-  if(g==='flow'&&(v<=0||v>=100)){ el.innerHTML='<div class="msg">Enter a reduction between 0 and 100%.</div>'; return; }
-  if(metric(3)<v){ el.innerHTML=`<div class="msg">Not reachable even with a 3 mm waist and this flare.</div>`; return; }
-  let lo=3,hi=S.D; for(let i=0;i<40;i++){ const m=(lo+hi)/2; if(metric(m)>v) lo=m; else hi=m; }
+  const tv=g==='psg'?v:-v;
+  if(metric(3)<tv){ el.innerHTML=`<div class="msg">Not reachable even with a 3 mm waist and this flare.</div>`; return; }
+  let lo=3,hi=S.D; for(let i=0;i<40;i++){ const m=(lo+hi)/2; if(metric(m)>tv) lo=m; else hi=m; }
   planW=(lo+hi)/2;
-  const r=solve({...S,wD:planW},cal), Ql0=cal.Qin-cal.Qs0, Ql=cal.Qin-r.Qs;
-  el.innerHTML=`<div class="k">Waist diameter needed</div><div class="big">${fmt(planW)} mm</div>
-    <div class="row"><span>PSG ${fmt(r.dP/PA)} mmHg</span><span>Shunt flow ${pct((r.Qs/cal.Qs0-1)*100)}</span><span>Liver gets ${fmt(Ql/cal.Qin*100,0)}% of portal flow (was ${fmt(Ql0/cal.Qin*100,0)}%)</span></div>
+  const r=solve({...S,wD:planW},cal);
+  el.innerHTML=`<div class="k">Downsize: waist diameter needed</div><div class="big">${fmt(planW)} mm</div>
+    <div class="row"><span>${pct((planW/S.D-1)*100)} diameter vs current ${S.D} mm</span><span>PSG ${fmt(r.dP/PA)} mmHg</span><span>Shunt flow ${pct((r.Qs/cal.Qs0-1)*100)}</span><span>${liver(r.Qs)}</span></div>
     <div class="sub">Model estimate only. Confirm by re-measuring the gradient after ballooning.</div>
     <button id="useW">Show this in the model</button>`;
   $('useW').onclick=()=>{ S.wD=Math.round(planW*10)/10; update(); $('flow').scrollIntoView({behavior:'smooth',block:'center'}); };
