@@ -327,7 +327,7 @@ function plan(){
     if(g==='psg'&&v<=0){ el.innerHTML='<div class="msg">Enter a target above 0.</div>'; return; }
     const metric=d=>{ const r=solveUp(d); return g==='psg'?r.dP/PA:(r.Qs/cal.Qs0-1)*100; };
     const ok=g==='psg'?metric(DMAX)<=v:metric(DMAX)>=v;
-    if(!ok){ el.innerHTML=`<div class="msg">Not reachable even by dilating to ${DMAX} mm.</div>`; return; }
+    if(!ok){ const mx=(solveUp(DMAX).Qs/cal.Qs0-1)*100; el.innerHTML=g==='flow'?`<div class="msg">Not reachable: the shunt already carries ${fmt(cal.Qs0/cal.Qin*100,0)}% of portal flow, so dilating to ${DMAX} mm adds at most ${pct(mx)}.</div>`:`<div class="msg">Not reachable even by dilating to ${DMAX} mm.</div>`; return; }
     let lo=S.D,hi=DMAX; for(let i=0;i<40;i++){ const m=(lo+hi)/2, x=metric(m); if(g==='psg'?x>v:x<v) lo=m; else hi=m; }
     const Dn=(lo+hi)/2, r=solveUp(Dn);
     el.innerHTML=`<div class="k">Upsize: dilate the stent to</div><div class="big">${fmt(Dn)} mm</div>
