@@ -331,7 +331,7 @@ function plan(){
     let lo=S.D,hi=DMAX; for(let i=0;i<40;i++){ const m=(lo+hi)/2, x=metric(m); if(g==='psg'?x>v:x<v) lo=m; else hi=m; }
     const Dn=(lo+hi)/2, r=solveUp(Dn);
     el.innerHTML=`<div class="k">Upsize: dilate the stent to</div><div class="big">${fmt(Dn)} mm</div>
-      <div class="row"><span>${pct((Dn/S.D-1)*100)} diameter vs current ${S.D} mm</span><span>PSG ${fmt(r.dP/PA)} mmHg</span><span>Shunt flow ${pct((r.Qs/cal.Qs0-1)*100)}</span><span>${liver(r.Qs)}</span></div>
+      <div class="row"><span>${pct((Dn/S.D-1)*100)} diameter vs current ${S.D} mm</span><span>PSG ${S.psgCur<0.5?'~0':fmt(S.psgCur)} → ${fmt(r.dP/PA)} mmHg (${(r.dP/PA-base)>=0?'+':'−'}${fmt(Math.abs(r.dP/PA-base))})</span><span>Shunt flow ${pct((r.Qs/cal.Qs0-1)*100)}</span><span>${liver(r.Qs)}</span></div>
       <div class="sub">Assumes the shunt's resistance scales with diameter⁴ (uniform dilation, e.g. a controlled-expansion or underdilated stent). Model estimate only; re-measure the gradient.</div>`;
     return;
   }
@@ -342,7 +342,7 @@ function plan(){
   planW=(lo+hi)/2;
   const r=solve({...S,wD:planW},cal);
   el.innerHTML=`<div class="k">Downsize: waist diameter needed</div><div class="big">${fmt(planW)} mm</div>
-    <div class="row"><span>${pct((planW/S.D-1)*100)} diameter vs current ${S.D} mm</span><span>PSG ${fmt(r.dP/PA)} mmHg</span><span>Shunt flow ${pct((r.Qs/cal.Qs0-1)*100)}</span><span>${liver(r.Qs)}</span></div>
+    <div class="row"><span>${pct((planW/S.D-1)*100)} diameter vs current ${S.D} mm</span><span>PSG ${S.psgCur<0.5?'~0':fmt(S.psgCur)} → ${fmt(r.dP/PA)} mmHg (${(r.dP/PA-base)>=0?'+':'−'}${fmt(Math.abs(r.dP/PA-base))})</span><span>Shunt flow ${pct((r.Qs/cal.Qs0-1)*100)}</span><span>${liver(r.Qs)}</span></div>
     <div class="sub">Model estimate only. Confirm by re-measuring the gradient after ballooning.</div>
     <button id="useW">Show this in the model</button>`;
   $('useW').onclick=()=>{ S.wD=Math.round(planW*10)/10; update(); $('flow').scrollIntoView({behavior:'smooth',block:'center'}); };
